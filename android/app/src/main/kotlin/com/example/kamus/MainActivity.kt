@@ -1,4 +1,4 @@
-package com.example.kamus_implementasi
+package com.example.kamus
 
 import io.flutter.embedding.android.FlutterActivity
 

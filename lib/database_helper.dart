@@ -3,12 +3,14 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:path_provider/path_provider.dart';
+import 'package:sqflite/sqflite.dart';
 
 class DatabaseHelper {
-  static final _databaseName = "db.db";
+  static final _databaseName = "tes.db";
   static final _databaseVersion = 1;
 
-  static final table = 'kamus';
+  static final table = 'DatabaseCoba';
 
   static final columnId = '_id';
   static final columnWord = 'word';
@@ -33,14 +35,23 @@ class DatabaseHelper {
   _initDatabase() async {
     Directory documentsDirectory = await getApplicationDocumentsDirectory();
     String path = join(documentsDirectory.path, _databaseName);
+
     print("Database path: $path");
 
-    if (!await File(path).exists()) {
-      ByteData data = await rootBundle.load(join('assets', _databaseName));
-      List<int> bytes = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
-      await File(path).writeAsBytes(bytes, flush: true);
+    // Periksa apakah file database ada sebelum menyalin
+    final file = File(path);
+    if (!await file.exists()) {
+      print("Database file does not exist. Copying from assets...");
+      ByteData data =
+          await rootBundle.load(join('assets', 'databases', _databaseName));
+      List<int> bytes =
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      await file.writeAsBytes(bytes, flush: true);
+    } else {
+      print("Database file already exists.");
     }
 
+    // Pastikan database dibuka dengan benar
     return await openDatabase(path, version: _databaseVersion);
   }
 
@@ -56,13 +67,15 @@ class DatabaseHelper {
 
   Future<int> queryRowCount() async {
     Database? db = await instance.database;
-    return Sqflite.firstIntValue(await db!.rawQuery('SELECT COUNT(*) FROM $table'))!;
+    return Sqflite.firstIntValue(
+        await db!.rawQuery('SELECT COUNT(*) FROM $table'))!;
   }
 
   Future<int> update(Map<String, dynamic> row) async {
     Database? db = await instance.database;
     int id = row[columnId];
-    return await db!.update(table, row, where: '$columnId = ?', whereArgs: [id]);
+    return await db!
+        .update(table, row, where: '$columnId = ?', whereArgs: [id]);
   }
 
   Future<int> delete(int id) async {
