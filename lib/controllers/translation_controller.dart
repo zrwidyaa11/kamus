@@ -32,36 +32,80 @@ class TranslationController extends GetxController {
     setText(controller.text);
   }
 
-  void setText(String text) {
+  void setText(String text) async {
     isTextEmpty.value = text.isEmpty;
     typedText.value = text;
 
-    var words = text.split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
+    // Pisahkan kata berdasarkan spasi dan hapus kata kosong
+    var words =
+        text.split(RegExp(r'\s+')).where((word) => word.isNotEmpty).toList();
 
-    translationResults.value = words.map((word) {
-      String translation = isIndonesianFirst.value 
-          ? 'Simulated translation for $word (Indonesian)' 
-          : 'Simulated translation for $word (Korean)';
-      return TranslationItemData(word: word, translation: translation);
-    }).toList();
+    // Ambil semua baris dari database
+    final allRows = await dbHelper.queryAllRows();
+
+    // Peta kata ke terjemahan dari database
+    var translationResults = <TranslationItemData>[];
+
+    for (var word in words) {
+      var matchingRow = allRows.firstWhere(
+          (row) => row[DatabaseHelper.columnTransliteration] == word,
+          orElse: () => <String, dynamic>{});
+
+      String translatedWord = matchingRow.isNotEmpty
+          ? (matchingRow[DatabaseHelper.columnWord] ?? '')
+          : 'No translation found';
+      String translation = matchingRow.isNotEmpty
+          ? (matchingRow[DatabaseHelper.columnTranslation] ?? '')
+          : 'No translation found';
+
+      translationResults.add(TranslationItemData(
+          word: word, translation: '$translatedWord, $translation'));
+    }
+
+    this.translationResults.value = translationResults;
   }
 
   void translate() async {
     print("Translating: ${typedText.value}");
     showListView.value = true;
 
-    // Simpan hasil terjemahan ke dalam database
-    for (var result in translationResults) {
-      await dbHelper.insert({
-        DatabaseHelper.columnWord: result.word,
-        DatabaseHelper.columnTranslation: result.translation
-      });
-    }
+    try {
+      // Simpan hasil terjemahan ke dalam database
+      for (var result in translationResults) {
+        await dbHelper.insert({
+          DatabaseHelper.columnWord: result.word,
+          DatabaseHelper.columnTranslation: result.translation
+        });
+      }
 
-    // Query data dari database
-    final allRows = await dbHelper.queryAllRows();
-    print('query all rows:');
-    allRows.forEach((row) => print(row));
+      // Query data dari database
+      final allRows = await dbHelper.queryAllRows();
+      print('Database rows: $allRows'); // Tambahkan ini
+
+      // Update translationResults dari database jika diperlukan
+      var words = typedText.value
+          .split(RegExp(r'\s+'))
+          .where((word) => word.isNotEmpty)
+          .toList();
+      translationResults.value = words.map((word) {
+        var matchingRow = allRows.firstWhere(
+            (row) => row[DatabaseHelper.columnWord] == word,
+            orElse: () => <String,
+                dynamic>{} // Mengembalikan map kosong jika tidak ditemukan
+            );
+
+        String translation = matchingRow.isNotEmpty
+            ? matchingRow[DatabaseHelper.columnTranslation] ??
+                'No translation found'
+            : 'No translation found';
+
+        print('Word: $word, Translation: $translation'); // Tambahkan ini
+
+        return TranslationItemData(word: word, translation: translation);
+      }).toList();
+    } catch (e) {
+      print("Error during translation: $e");
+    }
   }
 }
 
